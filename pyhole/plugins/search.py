@@ -118,37 +118,6 @@ class Search(plugin.Plugin):
         else:
             self.irc.reply(self.twitter.__doc__)
 
-    @plugin.hook_add_command("urban")
-    @utils.spawn
-    def urban(self, params=None, **kwargs):
-        """Search Urban Dictionary (ex: .urban <query>)"""
-        if params:
-            query = urllib.urlencode({"term": params})
-            url = "http://www.urbandictionary.com/define.php?%s" % query
-            response = self.irc.fetch_url(url, self.name)
-            if not response:
-                return
-
-            soup = BeautifulSoup(response.read())
-            results = soup.findAll("div", {"class": "definition"})
-
-            urban = ""
-            if len(results):
-                urban = " ".join(str(x) for x in soup.findAll(
-                        "div", {"class": "definition"})[0].contents)
-
-            if len(urban) > 0:
-                for i, line in enumerate(urban.split("<br/>")):
-                    if i <= 4:
-                        self.irc.reply(utils.decode_entities(line))
-                    else:
-                        self.irc.reply("[...] %s" % url)
-                        break
-            else:
-                self.irc.reply("No results found: '%s'" % params)
-        else:
-            self.irc.reply(self.urban.__doc__)
-
     @plugin.hook_add_command("wikipedia")
     @utils.spawn
     def wikipedia(self, params=None, **kwargs):
