@@ -17,12 +17,14 @@
 import functools
 import os
 import sys
+import time
 
 import log
 import utils
 
 
 LOG = log.get_logger()
+
 _plugin_instances = []
 _plugin_hooks = {}
 
@@ -41,15 +43,28 @@ def _reset_variables():
         _plugin_hooks[x] = []
 
 
-def hook_add(hookname, arg):
+def hook_add(hookname, arg, poll_timer=60):
     """Generic decorator to add hooks.  Generally, this is not called
     directly by plugins.  Decorators that plugins use are automatically
     generated below with the setattrs you'll see
     """
     def wrap(f):
-        setattr(f, "_is_%s_hook" % hookname, True)
-        f._hook_arg = arg
-        return f
+        if hookname == "poll":
+            @utils.spawn
+            def _f(self, *args, **kwargs):
+                while True:
+                    f(self, *args, **kwargs)
+                    time.sleep(poll_timer)
+
+            setattr(_f, "_is_%s_hook" % hookname, True)
+            _f._hook_arg = arg
+
+            return _f
+        else:
+            setattr(f, "_is_%s_hook" % hookname, True)
+            f._hook_arg = arg
+
+            return f
 
     return wrap
 
@@ -70,9 +85,10 @@ def active_get(hookname):
     """
     return [x[2] for x in _plugin_hooks[hookname]]
 
-_hook_names = ["keyword", "command", "msg_regex", "action"]
+_hook_names = ["keyword", "command", "msg_regex", "poll", "action"]
 _reset_variables()
 _this_mod = sys.modules[__name__]
+
 
 for x in _hook_names:
     # Dynamically create the decorators and functions for various hooks
@@ -101,7 +117,6 @@ class PluginMetaClass(type):
 
 class Plugin(object):
     """The class that all plugin classes should inherit from"""
-
     __metaclass__ = PluginMetaClass
 
     def __init__(self, irc, *args, **kwargs):
@@ -169,6 +184,17 @@ def reload_plugins(*args, **kwargs):
     """Module function that'll reload all of the plugins"""
     config = utils.get_config()
 
+    # Terminate running poll instances
+    for plugin in _plugin_instances:
+        for attr_name in dir(plugin):
+            attr = getattr(plugin, attr_name)
+            if getattr(attr, "_is_poll_hook", False):
+                # TODO(jk0): Doing this kills the entire process. We need to
+                # figure out how to kill it properly. Until this is done,
+                # reloading will not work with polls.
+                #attr().throw(KeyboardInterrupt)
+                pass
+
     # When the modules are reloaded, the meta class will append
     # all of the classes again, so we need to make sure this is empty
     Plugin._plugin_classes = []
@@ -177,9 +203,12 @@ def reload_plugins(*args, **kwargs):
     # Now reload all of the plugins
     plugins_to_reload = []
     plugindir = "pyhole.plugins"
+    local_plugin_dir = utils.get_home_directory() + "plugins"
 
     # Reload existing plugins
     for mod, val in sys.modules.items():
+        l_plugin_path = os.path.join(local_plugin_dir, mod)
+
         if plugindir in mod and val and mod != plugindir:
             mod_file = val.__file__
             if not os.path.isfile(mod_file):
@@ -187,6 +216,9 @@ def reload_plugins(*args, **kwargs):
             for p in config.get("plugins", type="list"):
                 if plugindir + "." + p == mod:
                     plugins_to_reload.append(mod)
+
+        if local_plugin_dir in str(val):
+            plugins_to_reload.append(mod)
 
     for plugin in plugins_to_reload:
         try:

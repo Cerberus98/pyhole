@@ -70,6 +70,24 @@ class IRC(irclib.SimpleIRCClient):
                 ssl=self.ssl, ipv6=self.ipv6, localaddress=self.bind_to,
                 username=self.username)
 
+    def run_hook_command(self, mod_name, func, arg, **kwargs):
+        """Make a call to a plugin hook."""
+        try:
+            if arg:
+                self.log.debug("Calling: %s.%s(\"%s\")" % (mod_name,
+                        func.__name__, arg))
+            else:
+                self.log.debug("Calling: %s.%s(None)" % (mod_name,
+                        func.__name__))
+            func(arg, **kwargs)
+        except Exception, exc:
+            self.log.exception(exc)
+
+    def run_hook_polls(self):
+        """Run polls in the background."""
+        for mod_name, func, cmd in plugin.hook_get_polls():
+            self.run_hook_command(mod_name, func, cmd)
+
     def load_plugins(self, reload_plugins=False):
         """Load plugins and their commands respectively."""
         if reload_plugins:
@@ -78,19 +96,7 @@ class IRC(irclib.SimpleIRCClient):
             plugin.load_plugins(irc=self)
 
         self.log.info("Loaded Plugins: %s" % active_plugins())
-
-    def run_hook_command(self, mod_name, func, arg, **kwargs):
-        """Make a call to a plugin hook."""
-        try:
-            func(arg, **kwargs)
-            if arg:
-                self.log.debug("Calling: %s.%s(\"%s\")" % (mod_name,
-                        func.__name__, arg))
-            else:
-                self.log.debug("Calling: %s.%s(None)" % (mod_name,
-                        func.__name__))
-        except Exception, exc:
-            self.log.exception(exc)
+        self.run_hook_polls()
 
     def run_msg_regexp_hooks(self, message, private):
         """Run regexp hooks."""
@@ -461,6 +467,5 @@ def main():
             if not procs:
                 LOG.info("No longer connected to any networks, shutting down")
                 sys.exit(0)
-
     except KeyboardInterrupt:
         LOG.info("Caught KeyboardInterrupt, shutting down")
