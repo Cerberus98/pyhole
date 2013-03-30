@@ -14,6 +14,7 @@
 
 """Pyhole RegEx Plugin"""
 
+import random
 import re
 
 from pyhole import plugin
@@ -32,6 +33,9 @@ class RegEx(plugin.Plugin):
         lookback = utils.get_config("Regex").get("lookback")
         if len(self.irc_history) > int(lookback):
             self.irc_history.pop()
+
+    def _history_push(self, message):
+        """Pushes messages onto the stack"""
 
     @plugin.hook_add_msg_regex('.*')
     def regex(self, params=None, **kwargs):
@@ -66,3 +70,31 @@ class RegEx(plugin.Plugin):
                 if not private:
                     self.history_update(source, str)
                 return
+
+    @plugin.hook_add_command('dietz')
+    def dietz(self, params=None, **kwargs):
+        """Docking"""
+        try:
+            private = kwargs['private']
+        except TypeError:
+            return
+
+        # Get last message from IRC history
+        if private:
+           return
+        source, message = self.irc_history[0]
+        str_buf = []
+        for word in message.split(" "):
+            sperms = ""
+            if random.randint(0, 10) > 9:
+                num_sperms = random.randint(1,3)
+                condom = []
+                for i in xrange(num_sperms):
+                    velocity = random.randint(0, 3)
+                    condom.append("%s~o" % (" " * velocity))
+                sperms = "".join(condom)
+            shaft = ('=' * len(word))
+            dick = "8%sD %s" % (shaft, sperms)
+
+            str_buf.append(dick)
+        self.irc.reply("<%s> %s" % (source, ' '.join(str_buf)))

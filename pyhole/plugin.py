@@ -78,7 +78,7 @@ def hook_get(hookname):
 
 
 def active_get(hookname):
-    """Function to return the list of hook arguments.  Genearlly
+    """Function to return the list of hook arguments.  Generally
     this is not called directly.  Callers tend to use the dynamically
     generated calls 'active_get_*' that are created below with the
     setattrs
